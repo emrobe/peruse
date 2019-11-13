@@ -107,7 +107,7 @@ def parse_functional_to_sql(data, filename="csvdescriptions.sql"):
     filename: output filename
     '''
     df = pd.DataFrame(data).T
-    conn = sqlite3.connect("output/csvdescriptions.sql")
+    conn = sqlite3.connect(os.path.join(home, "output/csvdescriptions.sql"))
     df.to_sql("functional", conn, if_exists='replace', index=True)
 
 def parse_binning_maxbin(renamed, summary):
@@ -128,6 +128,13 @@ def parse_binning_maxbin(renamed, summary):
         dfdata['Bin annotation'][key] = taxonomy[0]
     return dfdata
 
+def mapseq_to_krona(filename):
+    df = pd.read_csv(filename, sep="\t", skiprows=2, header=None)
+    df = df.iloc[: ,[0,13,16,19,22,25,28,31]]
+    df.iloc[:,0] = 1
+    outputfile = os.path.join(home, "output/mapseq2krona.txt")
+    df.to_csv(outputfile, sep="\t", header=None, index=False)
+    return outputfile
 
 if __name__ == '__main__':
     import argparse
@@ -156,8 +163,10 @@ if __name__ == '__main__':
     parser.add_argument("--maxbinsummary", help="Path to maxbin summary file")
     args = parser.parse_args()
 
-    if not os.path.isdir("output"):
-        os.mkdir("output")
+    home = os.path.expanduser("~")
+
+    if not os.path.isdir(os.path.join(home, "output")):
+        os.mkdir(os.path.join(home, "output"))
 
     ### Sequence distribution
     if os.path.isfile(args.r1) and os.path.isfile(args.r2):
@@ -173,23 +182,22 @@ if __name__ == '__main__':
         table, seqhist['stR2'], seqedge['stR2'] = generate_seq_stats(args.stmerged, 'stR2', table)
         table, seqhist['Contigs'], seqedge['Contigs'] = generate_seq_stats(args.contigs, 'Contigs', table, False)
         
-        with open('output/table.j', 'w') as output:
+        with open(os.path.join(home, 'output/table.j'), 'w') as output:
             json.dump(table, output)
-        with open('output/hist.j', 'w') as output:
+        with open(os.path.join(home, 'output/hist.j'), 'w') as output:
             json.dump(seqedge, output)
-        with open('output/edges.j', 'w') as output:
+        with open(os.path.join(home, 'output/edges.j'), 'w') as output:
             json.dump(seqhist, output)
 
     ### Taxonomic Classification
     # Both of these probably need conversions before Krona-scripts!
     if os.path.isfile(args.mapseq):
-        pass
-        #subprocess.run(['$HOME/Krona/KronaTools/scripts/ImportTaxonomy.pl', '-tax', '$HOME/taxonomy', '-o', '$HOME/output/mapseq.html', args.mapseq], shell=True)
+        inputfile = mapseq_to_krona(args.mapseq)
+        subprocess.run("$HOME/Krona/KronaTools/scripts/ImportText.pl -o $HOME/output/mapseq.html {}".format(inputfile), shell=True)
 
     if os.path.isfile(args.kaiju):
-        pass
-        #subprocess.run(['$HOME/Krona/KronaTools/scripts/ImportTaxonomy.pl', '-tax', '$HOME/taxonomy', '-o', '$HOME/output/kaiju.html', args.kaiju], shell=True)
-
+        subprocess.run("$HOME/Krona/KronaTools/scripts/ImportTaxonomy.pl -q 2 -t 3 -tax $HOME/taxonomy -o $HOME/output/kaiju.html {}".format(args.kaiju), shell=True)
+    
     ### Functional annotation
     data = None
     if os.path.isfile(args.mga):
@@ -206,6 +214,6 @@ if __name__ == '__main__':
     #### Binning
     if os.path.isfile(args.maxbinrenamed) and os.path.isfile(args.maxbinsummary):
         binning = parse_binning_maxbin(args.maxbinrenamed, args.maxbinsummary)
-        with open('output/binning.j', 'w') as output:
+        with open(os.path.join(home, 'output/binning.j'), 'w') as output:
             json.dump(binning, output)
         # Need (out).summary and (out).marker and fastafiles
